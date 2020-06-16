@@ -1,2 +1,0 @@
-# cas
-Central Authentication System
