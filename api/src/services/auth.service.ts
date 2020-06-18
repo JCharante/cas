@@ -3,18 +3,36 @@ import * as jwt from 'jsonwebtoken';
 import { CreateUserDto } from '../dtos/users.dto';
 import HttpException from '../exceptions/HttpException';
 import { DataStoredInToken, TokenData } from '../interfaces/auth.interface';
-import { User } from '../interfaces/users.interface';
+import { User, Email, RedesignedUser} from '../interfaces/users.interface';
 import userModel from '../models/users.model';
 import { isEmptyObject } from '../utils/util';
+import { ObjectId, MongoClient } from 'mongodb';
+import BaseService from './BaseService';
 
-class AuthService {
+class AuthService extends BaseService {
   public users = userModel;
+
+  private async getUserByEmail(email: Email): Promise<RedesignedUser | null> {
+    const client = await this.getConnectedDBClient();
+    const casDatabase = client.db('cas');
+    const usersCollection = casDatabase.collection('users');
+    const user = await usersCollection.findOne({ email });
+    await client.close();
+    if (user === null || !user.hasOwnProperty('email') || !user.hasOwnProperty('isAdmin')) {
+      return null;
+    }
+    return {
+      email: user.email,
+      isAdmin: user.isAdmin,
+    };
+  }
 
   public async signup(userData: CreateUserDto): Promise<User> {
     if (isEmptyObject(userData)) throw new HttpException(400, "You're not userData");
 
-    const findUser: User = this.users.find(user => user.email === userData.email);
-    if (findUser) throw new HttpException(409, `You're email ${userData.email} already exists`);
+    if ((await this.getUserByEmail(userData.email)) !== null) {
+      throw new HttpException(409, `Account for ${userData.email} exists`);
+    }
 
     const hashedPassword = await bcrypt.hash(userData.password, 10);
     const createUserData: User = { id: (this.users.length + 1), ...userData, password: hashedPassword };

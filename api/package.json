@@ -8,6 +8,7 @@
     "lint": "tslint -p tsconfig.json -c tslint.json"
   },
   "dependencies": {
+    "@types/mongodb": "^3.5.22",
     "bcrypt": "^5.0.0",
     "class-transformer": "^0.2.3",
     "class-validator": "^0.12.2",
@@ -21,6 +22,7 @@
     "hpp": "^0.2.3",
     "jest": "^26.0.1",
     "jsonwebtoken": "^8.5.1",
+    "mongodb": "^3.5.9",
     "morgan": "^1.10.0",
     "swagger-jsdoc": "^4.0.0",
     "swagger-ui-express": "^4.1.4",
