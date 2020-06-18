@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { CreateUserDto } from '../dtos/users.dto';
 import { RequestWithUser } from '../interfaces/auth.interface';
-import { RedesignedUser, User } from '../interfaces/users.interface';
+import { RedesignedUser, User, UserWithSessionKey } from '../interfaces/users.interface';
 import AuthService from '../services/auth.service';
 
 class AuthController {
@@ -12,7 +12,8 @@ class AuthController {
 
     try {
       const signUpUserData: RedesignedUser = await this.authService.signup(userData);
-      res.status(201).json({ data: signUpUserData, message: 'signup' });
+      const userWithSession: UserWithSessionKey = await this.authService.createSession(signUpUserData, true);
+      res.status(201).json({ data: userWithSession, message: 'signup' });
     } catch (error) {
       next(error);
     }

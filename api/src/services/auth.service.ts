@@ -3,7 +3,7 @@ import * as jwt from 'jsonwebtoken';
 import { CreateUserDto } from '../dtos/users.dto';
 import HttpException from '../exceptions/HttpException';
 import { DataStoredInToken, TokenData } from '../interfaces/auth.interface';
-import { User, Email, RedesignedUser } from '../interfaces/users.interface';
+import { User, Email, RedesignedUser, UserWithSessionKey } from '../interfaces/users.interface';
 import userModel from '../models/users.model';
 import { isEmptyObject } from '../utils/util';
 import { ObjectId, MongoClient, Collection } from 'mongodb';
@@ -17,6 +17,14 @@ class AuthService extends BaseService {
     const casDatabase = client.db('cas');
     const usersCollection = casDatabase.collection('users');
     return { client, usersCollection };
+  }
+
+  private async getCollections() {
+    const client = await this.getConnectedDBClient();
+    const casDatabase = client.db('cas');
+    const usersCollection = casDatabase.collection('users');
+    const sessionsCollection = casDatabase.collection('sessions');
+    return { client, usersCollection, sessionsCollection };
   }
 
   private async getUserByEmail(email: Email): Promise<RedesignedUser | null> {
@@ -50,6 +58,25 @@ class AuthService extends BaseService {
       isAdmin: false,
     };
   }
+
+  public async createSession(user: RedesignedUser, skipChecks: boolean): Promise<UserWithSessionKey> {
+    const { client, sessionsCollection } = await this.getCollections();
+    if (!skipChecks) {
+      if ((await this.getUserByEmail(user.email)) === null) {
+        client.close();
+        throw new HttpException(400, `Account with email ${user.email} does not exist`);
+      }
+    }
+    const { insertedId } = await sessionsCollection.insertOne({ email: user.email });
+    const sessionKey : ObjectId = insertedId;
+    await client.close();
+    return {
+      email: user.email,
+      isAdmin: user.isAdmin,
+      sessionKey: sessionKey.toHexString(),
+    };
+  }
+
 
   public async signup(userData: CreateUserDto): Promise<RedesignedUser> {
     if (isEmptyObject(userData)) throw new HttpException(400, "You're not userData");
