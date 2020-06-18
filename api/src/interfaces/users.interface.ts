@@ -13,6 +13,10 @@ export interface RedesignedUser {
   isAdmin: boolean;
 }
 
+export interface RedesignedUserWithPassword extends RedesignedUser {
+  hashedPassword: string;
+}
+
 export interface UserWithSessionKey extends RedesignedUser {
   sessionKey: SessionKey;
 }

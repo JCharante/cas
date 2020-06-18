@@ -3,7 +3,7 @@ import * as jwt from 'jsonwebtoken';
 import { CreateUserDto } from '../dtos/users.dto';
 import HttpException from '../exceptions/HttpException';
 import { DataStoredInToken, TokenData } from '../interfaces/auth.interface';
-import { User, Email, RedesignedUser, UserWithSessionKey } from '../interfaces/users.interface';
+import {User, Email, RedesignedUser, UserWithSessionKey, RedesignedUserWithPassword} from '../interfaces/users.interface';
 import userModel from '../models/users.model';
 import { isEmptyObject } from '../utils/util';
 import { ObjectId, MongoClient, Collection } from 'mongodb';
@@ -40,6 +40,18 @@ class AuthService extends BaseService {
       email: user.email,
       isAdmin: user.isAdmin,
     };
+  }
+
+  private async getHashedPasswordForUser(userData: RedesignedUser): Promise<RedesignedUserWithPassword> {
+    const { client, usersCollection } = await this.getCollections();
+    const user = await usersCollection.findOne({ email: userData.email });
+    const ret: RedesignedUserWithPassword = {
+      email: userData.email,
+      isAdmin: userData.isAdmin,
+      hashedPassword: user.hashedPassword,
+    };
+    await client.close();
+    return ret;
   }
 
   private async createUser(email: Email, password: string, skipChecks: boolean): Promise<RedesignedUser> {
@@ -90,19 +102,16 @@ class AuthService extends BaseService {
     return user;
   }
 
-  public async login(userData: CreateUserDto): Promise<{ cookie: string, findUser: User }> {
+  public async login(userData: CreateUserDto): Promise<RedesignedUser> {
     if (isEmptyObject(userData)) throw new HttpException(400, "You're not userData");
 
-    const findUser: User = this.users.find(user => user.email === userData.email);
-    if (!findUser) throw new HttpException(409, `You're email ${userData.email} not found`);
+    const findUser: RedesignedUser = await this.getUserByEmail(userData.email);
+    if (findUser === null) throw new HttpException(409, `Account with email ${userData.email} not found.`);
 
-    const isPasswordMatching: boolean = await bcrypt.compare(userData.password, findUser.password);
-    if (!isPasswordMatching) throw new HttpException(409, "You're password not matching");
-
-    const tokenData = this.createToken(findUser);
-    const cookie = this.createCookie(tokenData);
-
-    return { cookie, findUser };
+    const user = await this.getHashedPasswordForUser(findUser);
+    const isPasswordMatching: boolean = await bcrypt.compare(userData.password, user.hashedPassword);
+    if (!isPasswordMatching) throw new HttpException(409, 'Invalid Credentials');
+    return findUser;
   }
 
   public async logout(userData: User): Promise<User> {
