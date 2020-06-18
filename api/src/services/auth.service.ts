@@ -3,14 +3,21 @@ import * as jwt from 'jsonwebtoken';
 import { CreateUserDto } from '../dtos/users.dto';
 import HttpException from '../exceptions/HttpException';
 import { DataStoredInToken, TokenData } from '../interfaces/auth.interface';
-import { User, Email, RedesignedUser} from '../interfaces/users.interface';
+import { User, Email, RedesignedUser } from '../interfaces/users.interface';
 import userModel from '../models/users.model';
 import { isEmptyObject } from '../utils/util';
-import { ObjectId, MongoClient } from 'mongodb';
+import { ObjectId, MongoClient, Collection } from 'mongodb';
 import BaseService from './BaseService';
 
 class AuthService extends BaseService {
   public users = userModel;
+
+  private async getUsersCollection(): Promise<{ client: MongoClient, usersCollection: Collection }>{
+    const client = await this.getConnectedDBClient();
+    const casDatabase = client.db('cas');
+    const usersCollection = casDatabase.collection('users');
+    return { client, usersCollection };
+  }
 
   private async getUserByEmail(email: Email): Promise<RedesignedUser | null> {
     const client = await this.getConnectedDBClient();
@@ -27,17 +34,33 @@ class AuthService extends BaseService {
     };
   }
 
-  public async signup(userData: CreateUserDto): Promise<User> {
+  private async createUser(email: Email, password: string, skipChecks: boolean): Promise<RedesignedUser> {
+    const { client, usersCollection } = await this.getUsersCollection();
+    if (!skipChecks) {
+      if ((await this.getUserByEmail(email)) !== null) {
+        await client.close();
+        throw new HttpException(409, `Account for ${email} exists`);
+      }
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await usersCollection.insertOne({ email, hashedPassword, isAdmin: false });
+    await client.close();
+    return {
+      email,
+      isAdmin: false,
+    };
+  }
+
+  public async signup(userData: CreateUserDto): Promise<RedesignedUser> {
     if (isEmptyObject(userData)) throw new HttpException(400, "You're not userData");
 
     if ((await this.getUserByEmail(userData.email)) !== null) {
       throw new HttpException(409, `Account for ${userData.email} exists`);
     }
 
-    const hashedPassword = await bcrypt.hash(userData.password, 10);
-    const createUserData: User = { id: (this.users.length + 1), ...userData, password: hashedPassword };
+    const user = await this.createUser(userData.email, userData.password, true);
 
-    return createUserData;
+    return user;
   }
 
   public async login(userData: CreateUserDto): Promise<{ cookie: string, findUser: User }> {
