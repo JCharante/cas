@@ -1,2 +1,4 @@
 #!/usr/bin/env bash
-docker build -t jcharante/cas-api . && docker push jcharante/cas-api && docker-machine ssh queen-1 'docker service create --name cas-api -p 3300:3300 jcharante/cas-api'
+CMD="docker service create --name cas-api -p 3300:3300 -e MONGO_URI=\"${CAS_MONGO_URI}\" jcharante/cas-api"
+CONT="docker-machine ssh queen-1 '${CMD}'"
+docker build -t jcharante/cas-api . && docker push jcharante/cas-api && eval "docker-machine ssh queen-1 '${CMD}'"
