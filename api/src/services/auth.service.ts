@@ -3,11 +3,13 @@ import * as jwt from 'jsonwebtoken';
 import { CreateUserDto } from '../dtos/users.dto';
 import HttpException from '../exceptions/HttpException';
 import { DataStoredInToken, TokenData } from '../interfaces/auth.interface';
-import {User, Email, RedesignedUser, UserWithSessionKey, RedesignedUserWithPassword} from '../interfaces/users.interface';
+import { User, Email, RedesignedUser, RedesignedUserWithPassword } from '../interfaces/users.interface';
 import userModel from '../models/users.model';
 import { isEmptyObject } from '../utils/util';
-import { ObjectId, MongoClient, Collection } from 'mongodb';
+import { MongoClient, Collection } from 'mongodb';
 import BaseService from './BaseService';
+import { v4 as uuidv4 } from 'uuid';
+import { UserWithSessionKey } from 'types-cas';
 
 class AuthService extends BaseService {
   public users = userModel;
@@ -79,13 +81,13 @@ class AuthService extends BaseService {
         throw new HttpException(400, `Account with email ${user.email} does not exist`);
       }
     }
-    const { insertedId } = await sessionsCollection.insertOne({ email: user.email });
-    const sessionKey : ObjectId = insertedId;
+    const sessionKey : string = uuidv4();
+    await sessionsCollection.insertOne({ sessionKey, email: user.email });
     await client.close();
     return {
+      sessionKey,
       email: user.email,
       isAdmin: user.isAdmin,
-      sessionKey: sessionKey.toHexString(),
     };
   }
 

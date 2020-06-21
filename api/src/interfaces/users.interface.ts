@@ -16,7 +16,3 @@ export interface RedesignedUser {
 export interface RedesignedUserWithPassword extends RedesignedUser {
   hashedPassword: string;
 }
-
-export interface UserWithSessionKey extends RedesignedUser {
-  sessionKey: SessionKey;
-}

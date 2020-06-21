@@ -43,7 +43,7 @@
 <script lang="ts">
 import Vue from 'vue';
 import Component from 'vue-class-component';
-
+import { AuthLoginResponse } from 'types-cas';
 
 @Component({})
 export default class Index extends Vue {
@@ -64,8 +64,8 @@ export default class Index extends Vue {
               email: this.email,
               password: this.password,
             });
-        const { data } = resp.data;
-        console.log(data);
+        const response: AuthLoginResponse = resp.data;
+        console.log(response.data.email, response.data.sessionKey);
       } else if (this.intent === 'signup') {
         const resp = this.$axios
           .post('https://cas-api.jcharante.com/auth/signup',
