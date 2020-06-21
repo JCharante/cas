@@ -25,7 +25,7 @@ export default class MainLayout extends Vue {
   hostname = '';
 
   async mounted() {
-    const servedBy: string = (await this.$axios.get('/naapi/hostname')).data;
+    const servedBy: string = (await this.$axios.get('/naapi/hostname', { baseURL: '' })).data;
     this.hostname = servedBy;
   }
 }

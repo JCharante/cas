@@ -15,3 +15,5 @@ export interface AuthLoginResponse {
     message: string;
     data: UserWithSessionKey;
 }
+
+export interface AuthSignupResponse extends AuthLoginResponse {}

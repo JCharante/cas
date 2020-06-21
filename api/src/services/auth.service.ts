@@ -2,7 +2,7 @@ import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { CreateUserDto } from '../dtos/users.dto';
 import HttpException from '../exceptions/HttpException';
-import { DataStoredInToken, TokenData } from '../interfaces/auth.interface';
+import {DataStoredInToken, Lock, TokenData} from '../interfaces/auth.interface';
 import { User, Email, RedesignedUser, RedesignedUserWithPassword } from '../interfaces/users.interface';
 import userModel from '../models/users.model';
 import { isEmptyObject } from '../utils/util';
@@ -26,7 +26,8 @@ class AuthService extends BaseService {
     const casDatabase = client.db('cas');
     const usersCollection = casDatabase.collection('users');
     const sessionsCollection = casDatabase.collection('sessions');
-    return { client, usersCollection, sessionsCollection };
+    const locksCollection = casDatabase.collection('locks');
+    return { client, usersCollection, sessionsCollection, locksCollection };
   }
 
   private async getUserByEmail(email: Email): Promise<RedesignedUser | null> {
@@ -44,6 +45,36 @@ class AuthService extends BaseService {
     };
   }
 
+  private async acquireLock(lockName: string, locksCollection: Collection): Promise<Lock> {
+    let lock: Lock | null = await locksCollection.findOne({ name: 'createUser' });
+    const agent = uuidv4();
+    let confirms: number = 0;
+    while (confirms < 2) {
+      if (lock === null || new Date() > lock.expiresOn) {
+        const expiresOn = new Date();
+        const timeOutSeconds = 9;
+        expiresOn.setSeconds(expiresOn.getSeconds() + timeOutSeconds);
+        await locksCollection.updateOne(
+          { name: lockName },
+          { $set: { expiresOn, agent } },
+          { upsert: true });
+      }
+      lock = await locksCollection.findOne({ name: lockName });
+      if (lock.agent === agent) {
+        confirms += 1;
+      }
+      const sleep = require('sleep-async')().Promise;
+      await sleep.sleep(100);
+    }
+    return lock;
+  }
+
+  private async releaseLock(lockName: string, locksCollection: Collection): Promise<void> {
+    // let lock: Lock | null = await locksCollection.findOne({ name: lockName });
+    const expiresOn: Date = new Date(0);
+    await locksCollection.updateOne({ name: lockName }, { $set: { expiresOn } });
+  }
+
   private async getHashedPasswordForUser(userData: RedesignedUser): Promise<RedesignedUserWithPassword> {
     const { client, usersCollection } = await this.getCollections();
     const user = await usersCollection.findOne({ email: userData.email });
@@ -56,16 +87,29 @@ class AuthService extends BaseService {
     return ret;
   }
 
-  private async createUser(email: Email, password: string, skipChecks: boolean): Promise<RedesignedUser> {
-    const { client, usersCollection } = await this.getUsersCollection();
+  private async createUser(email: Email, password: string, skipChecks: boolean = false): Promise<RedesignedUser> {
+    const { client, usersCollection, locksCollection } = await this.getCollections();
     if (!skipChecks) {
+      // easy async case
       if ((await this.getUserByEmail(email)) !== null) {
         await client.close();
         throw new HttpException(409, `Account for ${email} exists`);
       }
+      // get the lock
+      await this.acquireLock('createUser', locksCollection);
+      // do another check
+      if ((await this.getUserByEmail(email)) !== null) {
+        // let go of lock
+        await this.releaseLock('createUser', locksCollection);
+        await client.close();
+        throw new HttpException(409, `Account for ${email} exists`);
+      }
     }
+    // create user
     const hashedPassword = await bcrypt.hash(password, 10);
     await usersCollection.insertOne({ email, hashedPassword, isAdmin: false });
+    // let go of lock
+    await this.releaseLock('createUser', locksCollection);
     await client.close();
     return {
       email,
@@ -91,7 +135,6 @@ class AuthService extends BaseService {
     };
   }
 
-
   public async signup(userData: CreateUserDto): Promise<RedesignedUser> {
     if (isEmptyObject(userData)) throw new HttpException(400, "You're not userData");
 
@@ -99,7 +142,7 @@ class AuthService extends BaseService {
       throw new HttpException(409, `Account for ${userData.email} exists`);
     }
 
-    const user = await this.createUser(userData.email, userData.password, true);
+    const user = await this.createUser(userData.email, userData.password, false);
 
     return user;
   }

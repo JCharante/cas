@@ -3,7 +3,7 @@ import { CreateUserDto } from '../dtos/users.dto';
 import { RequestWithUser } from '../interfaces/auth.interface';
 import { RedesignedUser, User } from '../interfaces/users.interface';
 import AuthService from '../services/auth.service';
-import { UserWithSessionKey, AuthLoginResponse } from 'types-cas';
+import { UserWithSessionKey, AuthLoginResponse, AuthSignupResponse } from 'types-cas';
 
 class AuthController {
   public authService = new AuthService();
@@ -14,7 +14,11 @@ class AuthController {
     try {
       const signUpUserData: RedesignedUser = await this.authService.signup(userData);
       const userWithSession: UserWithSessionKey = await this.authService.createSession(signUpUserData, true);
-      res.status(201).json({ data: userWithSession, message: 'signup' });
+      const response: AuthSignupResponse = {
+        message: 'signup',
+        data: userWithSession,
+      };
+      res.status(201).json(response);
     } catch (error) {
       next(error);
     }
