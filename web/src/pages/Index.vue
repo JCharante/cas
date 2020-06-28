@@ -44,9 +44,17 @@
 import Vue from 'vue';
 import Component from 'vue-class-component';
 import { AuthLoginResponse, AuthSignupResponse } from 'types-cas';
+import { mapActions } from 'vuex';
 
-@Component({})
+@Component({
+  methods: mapActions('user', {
+    saveStoreToLocalStorage: 'saveStoreToLocalStorage',
+  }),
+})
 export default class Index extends Vue {
+  // Actions
+  saveStoreToLocalStorage!: () => null;
+
   private email = ''
 
   private password = ''
@@ -57,25 +65,34 @@ export default class Index extends Vue {
 
   private async submit() {
     try {
+      let response: AuthSignupResponse | AuthLoginResponse;
+      const postData = {
+        email: this.email,
+        password: this.password,
+      };
       if (this.intent === 'login') {
-        const resp = await this.$axios
-          .post('https://cas-api.jcharante.com/auth/login',
-            {
-              email: this.email,
-              password: this.password,
-            });
-        const response: AuthLoginResponse = resp.data;
-        console.log(response.data.email, response.data.sessionKey);
-      } else if (this.intent === 'signup') {
-        const resp = await this.$axios
-          .post('/auth/signup',
-            {
-              email: this.email,
-              password: this.password,
-            });
-        const response: AuthSignupResponse = resp.data;
-        console.log('Signed up', response.data.email, response.data.sessionKey);
+        const resp = await this.$axios.post('/auth/login', postData);
+        response = resp.data;
+        this.$q.notify({
+          type: 'positive',
+          message: 'Signed in',
+        });
+      } else { // (this.intent === 'signup') {
+        const resp = await this.$axios.post('/auth/signup', postData);
+        response = resp.data;
+        this.$q.notify({
+          type: 'positive',
+          message: 'Signed up',
+        });
       }
+
+      this.$store.commit('user/saveSessionId', response.data.sessionKey);
+      this.saveStoreToLocalStorage();
+      setTimeout(() => {
+        const redirectTo = `${this.$route.query.callback}?sessionKey=${response.data.sessionKey}`;
+        console.log(redirectTo);
+        window.location.replace(redirectTo);
+      }, 1000);
     } catch (error) {
       // eslint-disable-next-line no-alert
       window.alert(error.toString());
