@@ -87,7 +87,7 @@ module.exports = configure((ctx) => ({
   // Full list of options: https://quasar.dev/quasar-cli/quasar-conf-js#Property%3A-devServer
   devServer: {
     https: false,
-    port: 8080,
+    port: 3301,
     open: true, // opens browser window automatically
   },
 
@@ -109,7 +109,10 @@ module.exports = configure((ctx) => ({
     directives: [],
 
     // Quasar plugins
-    plugins: [],
+    plugins: [
+      'LocalStorage',
+      'Notify',
+    ],
   },
 
   // animations: 'all', // --- includes all animations
