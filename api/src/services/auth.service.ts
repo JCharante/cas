@@ -14,13 +14,6 @@ import { UserWithSessionKey } from 'types-cas';
 class AuthService extends BaseService {
   public users = userModel;
 
-  private async getUsersCollection(): Promise<{ client: MongoClient, usersCollection: Collection }>{
-    const client = await this.getConnectedDBClient();
-    const casDatabase = client.db('cas');
-    const usersCollection = casDatabase.collection('users');
-    return { client, usersCollection };
-  }
-
   private async getCollections() {
     const client = await this.getConnectedDBClient();
     const casDatabase = client.db('cas');
