@@ -3,13 +3,13 @@ import * as jwt from 'jsonwebtoken';
 import { CreateUserDto } from '../dtos/users.dto';
 import HttpException from '../exceptions/HttpException';
 import { DataStoredInToken, Lock, TokenData } from '../interfaces/auth.interface';
-import { User, Email, RedesignedUser, RedesignedUserWithPassword } from '../interfaces/users.interface';
+import { User, Email, RedesignedUser, RedesignedUserWithPassword, MongoSession, MongoUser } from '../interfaces/users.interface';
 import userModel from '../models/users.model';
 import { isEmptyObject } from '../utils/util';
 import { MongoClient, Collection } from 'mongodb';
 import BaseService from './BaseService';
 import { v4 as uuidv4 } from 'uuid';
-import { UserWithSessionKey } from 'types-cas';
+import { ErrorTypes, UserWithSessionKey } from 'types-cas';
 
 class AuthService extends BaseService {
   public users = userModel;
@@ -159,6 +159,34 @@ class AuthService extends BaseService {
     if (!findUser) throw new HttpException(409, "You're not user");
 
     return findUser;
+  }
+
+  public async getUserFromSessionKey(sessionKey: string): Promise<RedesignedUser> {
+    const { client, sessionsCollection, usersCollection } = await this.getCollections();
+    const findSession: MongoSession | null = await sessionsCollection.findOne({ sessionKey });
+    if (findSession === null) {
+      await client.close();
+      throw {
+        type: ErrorTypes.InvalidSessionKey,
+        debugMessage: 'Invalid Session Key',
+        displayableMessage: 'Invalid Session Key. Please reload the page.',
+      };
+      // throw new HttpException(409, 'Invalid Session Key');
+    }
+    const findUser: MongoUser | null = await usersCollection.findOne({ email: findSession.email });
+    await client.close();
+    if (findUser === null) {
+      throw {
+        type: ErrorTypes.UserIsMissing,
+        debugMessage: `User ${findSession.email} not found`,
+        displayableMessage: 'User is missing...',
+      };
+      // throw new HttpException(409, 'User not found... try a different session key');
+    }
+    return {
+      email: findUser.email,
+      isAdmin: findUser.isAdmin,
+    };
   }
 
   public createToken(user: User): TokenData {

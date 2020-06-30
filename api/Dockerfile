@@ -1,4 +1,4 @@
-FROM node:12.17
+FROM node:14.4
 
 WORKDIR /usr/src/cas-api
 

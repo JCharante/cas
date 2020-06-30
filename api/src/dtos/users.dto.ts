@@ -7,3 +7,8 @@ export class CreateUserDto {
   @IsString()
   public password: string;
 }
+
+export class SessionKeyDto {
+  @IsString()
+  public sessionKey: string;
+}
