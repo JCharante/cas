@@ -32,6 +32,7 @@ export interface CasError {
 export interface AuthAccountInfoResponse {
     data?: {
         email: string;
+        userId: string;
         isAdmin: boolean;
     }
 

@@ -6,7 +6,7 @@ import { DataStoredInToken, Lock, TokenData } from '../interfaces/auth.interface
 import { User, Email, RedesignedUser, RedesignedUserWithPassword, MongoSession, MongoUser } from '../interfaces/users.interface';
 import userModel from '../models/users.model';
 import { isEmptyObject } from '../utils/util';
-import { MongoClient, Collection } from 'mongodb';
+import { MongoClient, Collection, ObjectId } from 'mongodb';
 import BaseService from './BaseService';
 import { v4 as uuidv4 } from 'uuid';
 import { ErrorTypes, UserWithSessionKey } from 'types-cas';
@@ -29,11 +29,12 @@ class AuthService extends BaseService {
     const usersCollection = casDatabase.collection('users');
     const user = await usersCollection.findOne({ email });
     await client.close();
-    if (user === null || !user.hasOwnProperty('email') || !user.hasOwnProperty('isAdmin')) {
+    if (user === null || !user.hasOwnProperty('email') || !user.hasOwnProperty('isAdmin') || !user.hasOwnProperty('userId')) {
       return null;
     }
     return {
       email: user.email,
+      userId: user.userId,
       isAdmin: user.isAdmin,
     };
   }
@@ -70,9 +71,10 @@ class AuthService extends BaseService {
 
   private async getHashedPasswordForUser(userData: RedesignedUser): Promise<RedesignedUserWithPassword> {
     const { client, usersCollection } = await this.getCollections();
-    const user = await usersCollection.findOne({ email: userData.email });
+    const user: MongoUser = await usersCollection.findOne({ email: userData.email });
     const ret: RedesignedUserWithPassword = {
       email: userData.email,
+      userId: user.userId.toHexString(),
       isAdmin: userData.isAdmin,
       hashedPassword: user.hashedPassword,
     };
@@ -100,12 +102,14 @@ class AuthService extends BaseService {
     }
     // create user
     const hashedPassword = await bcrypt.hash(password, 10);
-    await usersCollection.insertOne({ email, hashedPassword, isAdmin: false });
+    const userId: ObjectId = new ObjectId();
+    await usersCollection.insertOne({ email, userId, hashedPassword, isAdmin: false });
     // let go of lock
     await this.releaseLock('createUser', locksCollection);
     await client.close();
     return {
       email,
+      userId: userId.toHexString(),
       isAdmin: false,
     };
   }
@@ -185,6 +189,7 @@ class AuthService extends BaseService {
     }
     return {
       email: findUser.email,
+      userId: findUser.userId.toHexString(),
       isAdmin: findUser.isAdmin,
     };
   }

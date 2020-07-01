@@ -9,6 +9,7 @@ export interface User {
 export interface MongoUser {
   _id: ObjectId;
   email: string;
+  userId: ObjectId;
   hashedPassword: string;
   isAdmin: boolean;
 }
@@ -25,6 +26,7 @@ export type SessionKey = string;
 
 export interface RedesignedUser {
   email: Email;
+  userId: string;
   isAdmin: boolean;
 }
 
